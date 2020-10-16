@@ -5,14 +5,15 @@ path2save: ./results
 images_fname: 'ShapeNetAll13_images.h5'
 meshes_fname: 'ShapeNetAll13_meshes.h5'
 cloud_size: 2500
-sampled_cloud_size: 500
+sampled_cloud_size: 2500
 refine_sampled_clouds: False
 N_samples: 1
 predicting: True
 
 ### Dataset iterator configs ###
 chosen_label: 'Chair'
-batch_size: 4
+batch_size: 20
+batch_norm: True
 shuffle: True
 num_workers: 8
 
@@ -31,13 +32,13 @@ image_means:
   - 0.03492457
   - 0.03379815
   - 0.03475684
-#  - 0.03874264
+  - 0.03874264
 #  - 0.14249628
 image_stds:
   - 0.10963749
   - 0.10795733
   - 0.11031612
-#  - 0.12266339
+  - 0.12266339
 #  - 0.34554828
 image_noise: False
 image_noise_scale: 0.02

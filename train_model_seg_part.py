@@ -9,15 +9,16 @@ from torch.utils.data import DataLoader
 from datasets.get_segs import ShapeNetDataset
 
 from networks.optimizers import Adam, LRUpdater
-from networks.models import Conditional_RNVP_with_image_prior, Model_of_Full_Obj
+from networks.models import Model_of_Full_Obj
 from networks.losses import Conditional_RNVP_with_image_prior_loss
 from training_with_segs import train_test, evaluate_test
+from datasets.image_transformations import ComposeImageTransformation
 
 
 def define_options_parser():
     parser = argparse.ArgumentParser(description='Model training script. Provide a suitable config.')
     parser.add_argument('--config', default='./image_based_model.yaml', help='Path to config file in YAML format.')
-    parser.add_argument('--modelname', default='image_prior_rnvp_with_one_part', help='Model name to save checkpoints.')
+    parser.add_argument('--modelname', default='image_prior_rnvp_with_modulelist', help='Model name to save checkpoints.')
     parser.add_argument('--n_epochs', type=int, default=20, help='Total number of training epochs.')
     parser.add_argument('--lr', type=float, default=0.000256, help='Learining rate value.')
     parser.add_argument('--resume', default=False, action='store_true',
@@ -53,8 +54,10 @@ if args.resume_optimizer:
     config['resume_optimizer'] = True
 print('Configurations loaded.')
 
+image_transform = ComposeImageTransformation(**config)
 train_dataset = ShapeNetDataset(
     datafile=config['path2data'],
+    image_transform = image_transform,
     classification=False,
     class_choice=[args.class_choice])
 train_dataloader = torch.utils.data.DataLoader(
@@ -65,6 +68,7 @@ train_dataloader = torch.utils.data.DataLoader(
 
 test_dataset = ShapeNetDataset(
     datafile=config['path2data'],
+    image_transform = image_transform,
     classification=False,
     class_choice=[args.class_choice],
     split='test',
@@ -80,11 +84,9 @@ print('Dataset init: done.')
 
 num_seg_classes = train_dataset.num_seg_classes
 
-
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-model_batch = Conditional_RNVP_with_image_prior(**config).to(device)
-model = Model_of_Full_Obj(model_batch, num_seg_classes).to(device)
+model = Model_of_Full_Obj(num_seg_classes, **config).to(device)
 
 #if torch.cuda.device_count() > 1:
 #    model =  nn.DataParallel(model)        #when do data parallel, errors occur in optimizer.step() so use only one gpu
@@ -93,9 +95,12 @@ print('Total number of parameters: {}'.format(count_parameters(model)))
 
 criterion = Conditional_RNVP_with_image_prior_loss(**config).to(device)
 
-
 optimizer = Adam(model.parameters(), lr=config['max_lr'], weight_decay=config['wd'],
                  betas=(config['beta1'], config['max_beta2']), amsgrad=True)
+scheduler = LRUpdater(len(train_dataloader), **config)
+print('Optimizer init: done.')
+
+criterion = Conditional_RNVP_with_image_prior_loss(**config).to(device)
 scheduler = LRUpdater(len(train_dataloader), **config)
 print('Optimizer init: done.')
 
@@ -111,9 +116,11 @@ else:
     model.load_state_dict(checkpoint['model_state'])
     if config['resume_optimizer']:
         optimizer.load_state_dict(checkpoint['optimizer_state'])
+
     del(checkpoint)
     print('Model {} loaded.'.format(path2checkpoint))
     print("resume successfully")
+
 if not args.predicting:
     print("training")
     for epoch in range(cur_epoch, config['n_epochs']):
@@ -123,4 +130,4 @@ if not args.predicting:
 else:
     print("predicting")
     with torch.no_grad():
-        evaluate_test(test_dataloader, model, optimizer, criterion, **config)
+        evaluate_test(train_dataloader, model, optimizer, criterion, **config)

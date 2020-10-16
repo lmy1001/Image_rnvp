@@ -4,7 +4,7 @@ import torch
 import matplotlib as plt
 #from metrics.evaluation_metrics import compute_all_metrics, EMD_CD
 
-f = h5py.File("./results/image_prior_rnvp_2500_2500_training_segs_clouds.h5", "r")
+f = h5py.File("./results/image_prior_rnvp_with_whole_pc_2500_2500_predicting_segs_clouds.h5", "r")
 #f = h5py.File("/srv/beegfs-benderdata/scratch/density_estimation/data/3DMultiView/ShapeNetCore_points_images/chair/saved_model_from_train_all_svr/recon_results/all_svr_model_train_2500_2048_clouds_predicting.h5", "r")
 #gt_clouds = torch.from_numpy(f['gt_clouds'])
 #sampled_clouds = torch.from_numpy(f['sampled_clouds'])

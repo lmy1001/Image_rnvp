@@ -8,11 +8,12 @@ import cv2
 class ShapeNetDataset(data.Dataset):
     def __init__(self,
                  datafile,
+                 image_transform,
                  npoints=2500,
                  classification=False,
                  class_choice=None,
                  split='train',
-                 data_augmentation=True,
+                 data_augmentation=False,
                  seg_part = 0):
         self.npoints = npoints
         self.datafile = datafile
@@ -59,7 +60,7 @@ class ShapeNetDataset(data.Dataset):
                 self.seg_classes[ls[0]] = int(ls[1])
         self.num_seg_classes = self.seg_classes[list(self.cat.keys())[0]]
         #print(self.seg_classes, self.num_seg_classes)
-
+        self.image_transform = image_transform
     def __getitem__(self, index):
         fn = self.datapath[index]
         cls = self.classes[self.datapath[index][0]]
@@ -67,6 +68,8 @@ class ShapeNetDataset(data.Dataset):
         seg = np.loadtxt(fn[2]).astype(np.int64)
         #image = np.load(fn[3])
         image = np.transpose(np.array(cv2.imread(fn[3]), dtype = np.uint8), (2, 0, 1))
+        if self.image_transform is not None:
+            image = self.image_transform(image)
 
         choice = np.random.choice(len(seg), self.npoints, replace=True)
         # resample
@@ -76,12 +79,12 @@ class ShapeNetDataset(data.Dataset):
         dist = np.max(np.sqrt(np.sum(point_set ** 2, axis=1)), 0)
         point_set = point_set / dist  # scale
 
+
         if self.data_augmentation:
             theta = np.random.uniform(0, np.pi * 2)
             rotation_matrix = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
             point_set[:, [0, 2]] = point_set[:, [0, 2]].dot(rotation_matrix)  # random rotation
             point_set += np.random.normal(0, 0.02, size=point_set.shape)  # random jitter
-
         seg = seg[choice]
         point_set = torch.from_numpy(point_set)
         seg = torch.from_numpy(seg)

@@ -54,6 +54,12 @@ class FeatureEncoder(nn.Module):
                     self.features.add_module('mlp{}_bn'.format(i), nn.BatchNorm1d(in_features))
                 self.features.add_module('mlp{}_swish'.format(i), Swish())
 
+            for i in range(n_layers):
+                self.features.add_module('mlp{}'.format(i), nn.Linear(in_features, in_features, bias=False))
+                if self.batch_norm:
+                    self.features.add_module('mlp{}_bn'.format(i), nn.BatchNorm1d(in_features))
+                self.features.add_module('mlp{}_swish'.format(i), Swish())
+
         self.mus = nn.Sequential(OrderedDict([
             ('mu_mlp0', nn.Linear(in_features, latent_space_size, bias=True))
         ]))
