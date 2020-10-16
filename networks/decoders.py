@@ -3,17 +3,16 @@ import torch.nn as nn
 from networks.flows import CondRealNVPFlow3DTriple
 
 class LocalCondRNVPDecoder(nn.Module):
-    def __init__(self, n_flows, f_n_features, g_n_features, weight_std=0.01, batch_norm=True):
+    def __init__(self, n_flows, f_n_features, g_n_features, weight_std=0.01):
         super(LocalCondRNVPDecoder, self).__init__()
         self.n_flows = n_flows
         self.f_n_features = f_n_features
         self.g_n_features = g_n_features
         self.weight_std = weight_std
-        self.batch_norm = batch_norm
 
         self.flows = nn.ModuleList(
             [CondRealNVPFlow3DTriple(f_n_features, g_n_features,
-                                     weight_std=self.weight_std, pattern=(i % 2), batch_norm=self.batch_norm) for i in range(n_flows)]
+                                     weight_std=self.weight_std, pattern=(i % 2)) for i in range(n_flows)]
         )
 
     def forward(self, p, g, mode='direct'):

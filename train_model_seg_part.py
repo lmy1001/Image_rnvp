@@ -88,8 +88,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 model = Model_of_Full_Obj(num_seg_classes, **config).to(device)
 
-#if torch.cuda.device_count() > 1:
-#    model =  nn.DataParallel(model)        #when do data parallel, errors occur in optimizer.step() so use only one gpu
+if torch.cuda.device_count() > 1:
+    model =  nn.DataParallel(model)        #when do data parallel, errors occur in optimizer.step() so use only one gpu
 print('Model init: done.')
 print('Total number of parameters: {}'.format(count_parameters(model)))
 

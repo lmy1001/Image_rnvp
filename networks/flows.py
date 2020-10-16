@@ -10,7 +10,6 @@ from networks.layers import SharedDot, Swish
 class CondRealNVPFlow3D(nn.Module):
     def __init__(self, f_n_features, g_n_features,
                  weight_std=0.01, warp_inds=[0],
-                 batch_norm=True,
                  centered_translation=False, eps=1e-6):
         super(CondRealNVPFlow3D, self).__init__()
         self.f_n_features = f_n_features
@@ -20,36 +19,35 @@ class CondRealNVPFlow3D(nn.Module):
         self.keep_inds = [0, 1, 2]
         self.centered_translation = centered_translation
         self.register_buffer('eps', torch.from_numpy(np.array([eps], dtype=np.float32)))
-        self.batch_norm = batch_norm
         for ind in self.warp_inds:
             self.keep_inds.remove(ind)
 
-        T_mu_0_layers = [('mu_sd0', SharedDot(len(self.keep_inds), self.f_n_features, 1))]
-        if self.batch_norm:
-            T_mu_0_layers.append(('mu_sd0_bn', nn.BatchNorm1d(self.f_n_features)))
-        T_mu_0_layers.append(('mu_sd0_relu', nn.ReLU(inplace=True)))
-        T_mu_0_layers.append(('mu_sd1', SharedDot(self.f_n_features, self.f_n_features, 1)))
-        T_mu_0_layers.append(('mu_sd1_bn', nn.BatchNorm1d(self.f_n_features, affine=False)))
-        self.T_mu_0 = nn.Sequential(OrderedDict([*T_mu_0_layers]))
+        self.T_mu_0 = nn.Sequential(OrderedDict([
+            ('mu_sd0', SharedDot(len(self.keep_inds), self.f_n_features, 1)),
+            ('mu_sd0_bn', nn.BatchNorm1d(self.f_n_features)),
+            ('mu_sd0_relu', nn.ReLU(inplace=True)),
+            ('mu_sd1', SharedDot(self.f_n_features, self.f_n_features, 1)),
+            ('mu_sd1_bn', nn.BatchNorm1d(self.f_n_features, affine=False))
+        ]))         # 3-64-64
 
-        T_mu_0_cond_w_layers = [('mu_sd1_film_w0', nn.Linear(self.g_n_features, self.f_n_features, bias=False))]
-        if self.batch_norm:
-            T_mu_0_cond_w_layers.append(('mu_sd1_film_w0_bn', nn.BatchNorm1d(self.f_n_features)))
-        T_mu_0_cond_w_layers.append(('mu_sd1_film_w0_swish', Swish()))
-        T_mu_0_cond_w_layers.append(('mu_sd1_film_w1', nn.Linear(self.f_n_features, self.f_n_features, bias=True)))
-        self.T_mu_0_cond_w = nn.Sequential(OrderedDict([*T_mu_0_cond_w_layers]))  # 512-64-64
+        self.T_mu_0_cond_w = nn.Sequential(OrderedDict([
+            ('mu_sd1_film_w0', nn.Linear(self.g_n_features, self.f_n_features, bias=False)),
+            ('mu_sd1_film_w0_bn', nn.BatchNorm1d(self.f_n_features)),
+            ('mu_sd1_film_w0_swish', Swish()),
+            ('mu_sd1_film_w1', nn.Linear(self.f_n_features, self.f_n_features, bias=True))
+        ]))     #512-64-64
 
-        T_mu_0_cond_b_layers = [ ('mu_sd1_film_b0', nn.Linear(self.g_n_features, self.f_n_features, bias=False))]
-        if self.batch_norm:
-            T_mu_0_cond_b_layers.append(('mu_sd1_film_b0_bn', nn.BatchNorm1d(self.f_n_features)))
-        T_mu_0_cond_b_layers.append(('mu_sd1_film_b0_swish', Swish()))
-        T_mu_0_cond_b_layers.append(('mu_sd1_film_b1', nn.Linear(self.f_n_features, self.f_n_features, bias=True)))
-        self.T_mu_0_cond_b = nn.Sequential(OrderedDict([*T_mu_0_cond_b_layers]))  # 512-64-64
+        self.T_mu_0_cond_b = nn.Sequential(OrderedDict([
+            ('mu_sd1_film_b0', nn.Linear(self.g_n_features, self.f_n_features, bias=False)),
+            ('mu_sd1_film_b0_bn', nn.BatchNorm1d(self.f_n_features)),
+            ('mu_sd1_film_b0_swish', Swish()),
+            ('mu_sd1_film_b1', nn.Linear(self.f_n_features, self.f_n_features, bias=True))
+        ]))     #512-64-64
 
         self.T_mu_1 = nn.Sequential(OrderedDict([
             ('mu_sd1_relu', nn.ReLU(inplace=True)),
             ('mu_sd2', SharedDot(self.f_n_features, len(self.warp_inds), 1, bias=True))
-        ]))  # 128-1
+        ]))     #128-1
 
         with torch.no_grad():
             self.T_mu_0_cond_w[-1].weight.normal_(std=self.weight_std)
@@ -59,33 +57,32 @@ class CondRealNVPFlow3D(nn.Module):
             self.T_mu_1[-1].weight.data.normal_(std=self.weight_std)
             nn.init.constant_(self.T_mu_1[-1].bias.data, 0.0)
 
-        T_logvar_0_layers = [('logvar_sd0', SharedDot(len(self.keep_inds), self.f_n_features, 1))]
-        if self.batch_norm:
-            T_logvar_0_layers.append(('logvar_sd0_bn', nn.BatchNorm1d(self.f_n_features)))
-        T_logvar_0_layers.append(('logvar_sd0_relu', nn.ReLU(inplace=True)))
-        T_logvar_0_layers.append(('logvar_sd1', SharedDot(self.f_n_features, self.f_n_features, 1)))
-        if self.batch_norm:
+        self.T_logvar_0 = nn.Sequential(OrderedDict([
+            ('logvar_sd0', SharedDot(len(self.keep_inds), self.f_n_features, 1)),
+            ('logvar_sd0_bn', nn.BatchNorm1d(self.f_n_features)),
+            ('logvar_sd0_relu', nn.ReLU(inplace=True)),
+            ('logvar_sd1', SharedDot(self.f_n_features, self.f_n_features, 1)),
             ('logvar_sd1_bn', nn.BatchNorm1d(self.f_n_features, affine=False))
-        self.T_logvar_0 = nn.Sequential(OrderedDict([*T_logvar_0_layers]))     #3-64-64
+        ]))     #3-64-64
 
-        T_logvar_0_cond_w_layers = [('logvar_sd1_film_w0', nn.Linear(self.g_n_features, self.f_n_features, bias=False))]
-        if self.batch_norm:
-            T_logvar_0_cond_w_layers.append( ('logvar_sd1_film_w0_bn', nn.BatchNorm1d(self.f_n_features)))
-        T_logvar_0_cond_w_layers.append(('logvar_sd1_film_w0_swish', Swish()))
-        T_logvar_0_cond_w_layers.append(('logvar_sd1_film_w1', nn.Linear(self.f_n_features, self.f_n_features, bias=True)))
-        self.T_logvar_0_cond_w = nn.Sequential(OrderedDict([*T_logvar_0_cond_w_layers]))     #512-64-64
+        self.T_logvar_0_cond_w = nn.Sequential(OrderedDict([
+            ('logvar_sd1_film_w0', nn.Linear(self.g_n_features, self.f_n_features, bias=False)),
+            ('logvar_sd1_film_w0_bn', nn.BatchNorm1d(self.f_n_features)),
+            ('logvar_sd1_film_w0_swish', Swish()),
+            ('logvar_sd1_film_w1', nn.Linear(self.f_n_features, self.f_n_features, bias=True))
+        ]))     #512-64-64
 
-        T_logvar_0_cond_b_layers = [('logvar_sd1_film_b0', nn.Linear(self.g_n_features, self.f_n_features, bias=False))]
-        if self.batch_norm:
-            T_logvar_0_cond_b_layers.append(('logvar_sd1_film_b0_bn', nn.BatchNorm1d(self.f_n_features)))
-        T_logvar_0_cond_b_layers.append(('logvar_sd1_film_b0_swish', Swish()))
-        T_logvar_0_cond_b_layers.append(('logvar_sd1_film_b1', nn.Linear(self.f_n_features, self.f_n_features, bias=True)))
-        self.T_logvar_0_cond_b = nn.Sequential(OrderedDict([*T_logvar_0_cond_b_layers]))     #512-64-64
+        self.T_logvar_0_cond_b = nn.Sequential(OrderedDict([
+            ('logvar_sd1_film_b0', nn.Linear(self.g_n_features, self.f_n_features, bias=False)),
+            ('logvar_sd1_film_b0_bn', nn.BatchNorm1d(self.f_n_features)),
+            ('logvar_sd1_film_b0_swish', Swish()),
+            ('logvar_sd1_film_b1', nn.Linear(self.f_n_features, self.f_n_features, bias=True))
+        ]))     #512-64-64
 
         self.T_logvar_1 = nn.Sequential(OrderedDict([
             ('logvar_sd1_relu', nn.ReLU(inplace=True)),
             ('logvar_sd2', SharedDot(self.f_n_features, len(self.warp_inds), 1, bias=True))
-        ]))
+        ]))     #64-1
 
         with torch.no_grad():
             self.T_logvar_0_cond_w[-1].weight.normal_(std=self.weight_std)
@@ -121,40 +118,33 @@ class CondRealNVPFlow3D(nn.Module):
 
 
 class CondRealNVPFlow3DTriple(nn.Module):
-    def __init__(self, f_n_features, g_n_features, weight_std=0.02, pattern=0, centered_translation=False, batch_norm=True):
+    def __init__(self, f_n_features, g_n_features, weight_std=0.02, pattern=0, centered_translation=False):
         super(CondRealNVPFlow3DTriple, self).__init__()
         self.f_n_features = f_n_features
         self.g_n_features = g_n_features
         self.weight_std = weight_std
         self.pattern = pattern
         self.centered_translation = centered_translation
-        self.batch_norm = batch_norm
 
         if pattern == 0:
             self.nvp1 = CondRealNVPFlow3D(f_n_features, g_n_features,
                                           weight_std=weight_std, warp_inds=[0],
-                                          batch_norm=self.batch_norm,
                                           centered_translation=centered_translation)
             self.nvp2 = CondRealNVPFlow3D(f_n_features, g_n_features,
                                           weight_std=weight_std, warp_inds=[1],
-                                          batch_norm=self.batch_norm,
                                           centered_translation=centered_translation)
             self.nvp3 = CondRealNVPFlow3D(f_n_features, g_n_features,
                                           weight_std=weight_std, warp_inds=[2],
-                                          batch_norm=self.batch_norm,
                                           centered_translation=centered_translation)
         elif pattern == 1:
             self.nvp1 = CondRealNVPFlow3D(f_n_features, g_n_features,
                                           weight_std=weight_std, warp_inds=[0, 1],
-                                          batch_norm=self.batch_norm,
                                           centered_translation=centered_translation)
             self.nvp2 = CondRealNVPFlow3D(f_n_features, g_n_features,
                                           weight_std=weight_std, warp_inds=[0, 2],
-                                          batch_norm=self.batch_norm,
                                           centered_translation=centered_translation)
             self.nvp3 = CondRealNVPFlow3D(f_n_features, g_n_features,
                                           weight_std=weight_std, warp_inds=[1, 2],
-                                          batch_norm=self.batch_norm,
                                           centered_translation=centered_translation)
 
     def forward(self, p, g, mode='direct'):

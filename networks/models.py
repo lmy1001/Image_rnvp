@@ -26,25 +26,21 @@ class Conditional_RNVP_with_image_prior(nn.Module):
         self.p_decoder_n_features = kwargs.get('p_decoder_n_features')
         self.p_decoder_base_type = kwargs.get('p_decoder_base_type')
         self.p_decoder_base_var = kwargs.get('p_decoder_base_var')
-        self.batch_norm = kwargs.get('batch_norm')
 
         self.p_prior = FeatureEncoder(self.p_prior_n_layers, self.g_latent_space_size,
                                       self.p_latent_space_size, deterministic=False,
-                                      batch_norm=self.batch_norm,
                                       mu_weight_std=0.001, mu_bias=0.0,
                                       logvar_weight_std=0.01, logvar_bias=0.0)
 
         self.pc_decoder = LocalCondRNVPDecoder(self.p_decoder_n_flows,
                                                self.p_decoder_n_features,
                                                self.g_latent_space_size,
-                                               weight_std=0.01,
-                                               batch_norm=self.batch_norm)
+                                               weight_std=0.01)
 
         self.image_encoder = resnet18(num_classes=self.g_latent_space_size)
         self.g_prior_n_layers = kwargs.get('g_prior_n_layers')
         self.g0_prior = FeatureEncoder(self.g_prior_n_layers, self.g_latent_space_size,
                                        self.g_latent_space_size, deterministic=False,
-                                       batch_norm=self.batch_norm,
                                        mu_weight_std=0.0033, mu_bias=0.0,
                                        logvar_weight_std=0.033, logvar_bias=0.0)
 
@@ -61,16 +57,10 @@ class Conditional_RNVP_with_image_prior(nn.Module):
         if self.mode == 'training':
             ####add image features as condition to the RNVP
             img_features = self.image_encoder(images)       # n * 512
-            if len(p_input) > 1:
-                output['g_prior_mus'], output['g_prior_logvars'] = self.g0_prior(img_features)      # N * latent
-            else:
-                output['g_prior_mus'], output['g_prior_logvars'] = self.g0_prior_one_pc(img_features)
+            output['g_prior_mus'], output['g_prior_logvars'] = self.g0_prior(img_features)      # N * latent
             output['g_prior_samples'] = self.reparameterize(output['g_prior_mus'], output['g_prior_logvars'])
 
-            if len(p_input) > 1:
-                output['p_prior_mus'], output['p_prior_logvars'] = self.p_prior(output['g_prior_samples'])
-            else:
-                output['p_prior_mus'], output['p_prior_logvars'] = self.p_prior_one_pc(output['g_prior_samples'])
+            output['p_prior_mus'], output['p_prior_logvars'] = self.p_prior(output['g_prior_samples'])
             output['p_prior_mus'] = [output['p_prior_mus'].unsqueeze(2).expand(
                 p_input.shape[0], self.p_latent_space_size, p_input.shape[2]
             )]
@@ -78,10 +68,7 @@ class Conditional_RNVP_with_image_prior(nn.Module):
                 p_input.shape[0], self.p_latent_space_size, p_input.shape[2]
             )]
 
-            if len(p_input) > 1:
-                buf_p = self.pc_decoder(p_input, output['g_prior_samples'], mode='inverse')
-            else:
-                buf_p = self.pc_decoder_one_pc(p_input, output['g_prior_samples'], mode='inverse')
+            buf_p = self.pc_decoder(p_input, output['g_prior_samples'], mode='inverse')
             output['p_prior_samples'] = buf_p[0] + [p_input]
             output['p_prior_mus'] += buf_p[1]
             output['p_prior_logvars'] += buf_p[2]

@@ -13,7 +13,6 @@ predicting: True
 ### Dataset iterator configs ###
 chosen_label: 'Chair'
 batch_size: 20
-batch_norm: True
 shuffle: True
 num_workers: 8
 

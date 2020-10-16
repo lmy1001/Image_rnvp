@@ -150,6 +150,7 @@ def train_test(iterator, model, loss_func, optimizer, scheduler, epoch, iter, **
 
         print('[epoch %d] [%d / %d]: loss %f' % (epoch, i, len(iterator), loss_for_one_epoch))
 
+
         if (iter + i + 1) % (100 * num_workers) == 0:
             save_model({
                 'epoch': epoch,
